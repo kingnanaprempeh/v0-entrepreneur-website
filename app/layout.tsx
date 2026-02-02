@@ -1,12 +1,15 @@
 import type React from "react"
 import type { Metadata } from "next"
+import { GeistSans } from "geist/font/sans"
+import { GeistMono } from "geist/font/mono"
+import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "King Nana Prempeh - Serial Entrepreneur & Podcast Host",
+  title: "TechFounder - Build Your Next Breakthrough Business",
   description:
-    "King Nana Prempeh is a seasoned serial entrepreneur with over 10 years of experience in Fintech, AgriTech, and Asset Financing across Africa.",
+    "Join thousands of entrepreneurs transforming ideas into thriving businesses. Get actionable insights and proven training programs.",
   generator: "v0.app",
 }
 
@@ -17,8 +20,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased">
+      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
         <Suspense fallback={null}>{children}</Suspense>
+        <Analytics />
       </body>
     </html>
   )
