@@ -125,7 +125,7 @@ export default function HomePage() {
 
             {/* Portrait Image - Right Side */}
             <div className="relative lg:block hidden">
-              <div className="relative w-full max-w-3xl ml-auto aspect-auto">
+              <div className="relative w-full max-w-3xl ml-auto aspect-auto bg-slate-800 rounded-lg p-6">
                 <img
                   src="/nana-studio-portrait.png"
                   alt="King Nana Prempeh - Professional Studio Portrait"
@@ -135,7 +135,7 @@ export default function HomePage() {
             </div>
 
             {/* Mobile Portrait - Full Width on Small Screens */}
-            <div className="lg:hidden relative w-full max-w-xl mx-auto aspect-auto mt-8">
+            <div className="lg:hidden relative w-full max-w-xl mx-auto aspect-auto mt-8 bg-slate-800 rounded-lg p-6">
               <img
                 src="/nana-studio-portrait.png"
                 alt="King Nana Prempeh - Professional Studio Portrait"
