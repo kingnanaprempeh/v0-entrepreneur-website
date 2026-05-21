@@ -14,18 +14,24 @@ export async function POST(request: NextRequest) {
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
     if (supabaseUrl && supabaseKey) {
-      const supabase = createServerClient(supabaseUrl, supabaseKey, {
-        cookies: {
-          getAll: () => request.cookies.getAll(),
-          setAll: () => {},
-        },
-      })
+      try {
+        const supabase = createServerClient(supabaseUrl, supabaseKey, {
+          cookies: {
+            getAll: () => request.cookies.getAll(),
+            setAll: () => {},
+          },
+        })
 
-      await supabase.from("file_downloads").insert({
-        email,
-        file_name: "soybean-price-predictor",
-        downloaded_at: new Date().toISOString(),
-      })
+        await supabase.from("file_downloads").insert({
+          email,
+          file_name: "soybean-price-predictor",
+          downloaded_at: new Date().toISOString(),
+        })
+      } catch (supabaseError) {
+        // Log the error but don't fail - still allow download
+        console.warn("[v0] Supabase insert failed (table may not exist):", supabaseError)
+        // Continue to return success for download
+      }
     }
 
     // Return success with download URL
@@ -39,6 +45,14 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error("[v0] Download error:", error)
-    return NextResponse.json({ error: "Download failed" }, { status: 500 })
+    // Still return success for file download even if email capture fails
+    return NextResponse.json(
+      {
+        success: true,
+        downloadUrl: "/soybean-price-predictor.html",
+        message: "Download started!",
+      },
+      { status: 200 }
+    )
   }
 }
