@@ -1,10 +1,58 @@
 "use client"
 
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Menu, Instagram, Twitter, Linkedin, Youtube, Headphones, Facebook } from "lucide-react"
+import { Menu, Instagram, Twitter, Linkedin, Youtube, Headphones, Facebook, Download, X } from "lucide-react"
 import Link from "next/link"
 
 export default function HomePage() {
+  const [showDownloadModal, setShowDownloadModal] = useState(false)
+  const [email, setEmail] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [downloadMessage, setDownloadMessage] = useState("")
+
+  const handleDownload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setDownloadMessage("")
+
+    try {
+      const response = await fetch("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setDownloadMessage("Email saved! Download started...")
+        // Trigger download
+        setTimeout(() => {
+          const link = document.createElement("a")
+          link.href = data.downloadUrl
+          link.download = "soybean-price-predictor.html"
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          
+          setTimeout(() => {
+            setShowDownloadModal(false)
+            setEmail("")
+            setDownloadMessage("")
+          }, 1000)
+        }, 500)
+      } else {
+        setDownloadMessage("Error: " + (data.error || "Download failed"))
+      }
+    } catch (error) {
+      setDownloadMessage("Error: Unable to process download")
+      console.error("[v0] Download error:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-800 text-white relative overflow-hidden">
       {/* Navigation */}
@@ -104,6 +152,13 @@ export default function HomePage() {
                     <Headphones className="w-6 h-6" />
                     <span>Listen on Apple</span>
                   </Link>
+                  <button
+                    onClick={() => setShowDownloadModal(true)}
+                    className="flex items-center justify-center gap-3 px-8 py-4 bg-[#36b294] hover:bg-[#2a9476] text-white rounded-full font-medium transition-colors text-lg"
+                  >
+                    <Download className="w-6 h-6" />
+                    <span>Download Tools</span>
+                  </button>
                 </div>
               </div>
 
@@ -125,21 +180,21 @@ export default function HomePage() {
 
             {/* Portrait Image - Right Side */}
             <div className="relative lg:block hidden">
-              <div className="relative w-full max-w-3xl ml-auto aspect-[3/4]">
+              <div className="relative w-full max-w-3xl ml-auto aspect-auto">
                 <img
-                  src="/nana-main-picture.png"
-                  alt="King Nana Prempeh - Professional Portrait"
-                  className="w-full h-full object-contain rounded-lg scale-125"
+                  src="/nana-awards-professional.jpg"
+                  alt="King Nana Prempeh - Professional Portrait with Awards"
+                  className="w-full h-full object-cover rounded-lg"
                 />
               </div>
             </div>
 
             {/* Mobile Portrait - Full Width on Small Screens */}
-            <div className="lg:hidden relative w-full max-w-xl mx-auto aspect-[3/4] mt-8">
+            <div className="lg:hidden relative w-full max-w-xl mx-auto aspect-auto mt-8">
               <img
-                src="/nana-main-picture.png"
-                alt="King Nana Prempeh - Professional Portrait"
-                className="w-full h-full object-contain rounded-lg scale-125"
+                src="/nana-awards-professional.jpg"
+                alt="King Nana Prempeh - Professional Portrait with Awards"
+                className="w-full h-full object-cover rounded-lg"
               />
             </div>
           </div>
@@ -345,6 +400,63 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* Download Modal */}
+      {showDownloadModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg max-w-md w-full p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-light text-white">Download Soybean Predictor</h2>
+              <button
+                onClick={() => setShowDownloadModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <p className="text-gray-300 mb-6">
+              Enter your email to download the Soybean Price Predictor & calculator tool.
+            </p>
+
+            <form onSubmit={handleDownload} className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#36b294] transition-colors"
+                />
+              </div>
+
+              {downloadMessage && (
+                <p className={`text-sm ${downloadMessage.includes("Error") ? "text-red-400" : "text-[#36b294]"}`}>
+                  {downloadMessage}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[#36b294] hover:bg-[#2a8a73] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="w-5 h-5" />
+                {loading ? "Processing..." : "Download Now"}
+              </button>
+            </form>
+
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              We respect your privacy. Your email will only be used for download notifications.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
