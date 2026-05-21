@@ -125,21 +125,21 @@ export default function HomePage() {
 
             {/* Portrait Image - Right Side */}
             <div className="relative lg:block hidden">
-              <div className="relative w-full max-w-3xl ml-auto">
+              <div className="relative w-full max-w-3xl ml-auto aspect-auto">
                 <img
-                  src="/nana-best-portrait.png"
-                  alt="King Nana Prempeh - Professional Studio Portrait with Awards"
-                  className="w-full h-auto object-contain"
+                  src="/nana-awards-professional.jpg"
+                  alt="King Nana Prempeh - Professional Portrait with Awards"
+                  className="w-full h-full object-cover rounded-lg"
                 />
               </div>
             </div>
 
             {/* Mobile Portrait - Full Width on Small Screens */}
-            <div className="lg:hidden relative w-full max-w-xl mx-auto mt-8">
+            <div className="lg:hidden relative w-full max-w-xl mx-auto aspect-auto mt-8">
               <img
-                src="/nana-best-portrait.png"
-                alt="King Nana Prempeh - Professional Studio Portrait with Awards"
-                className="w-full h-auto object-contain"
+                src="/nana-awards-professional.jpg"
+                alt="King Nana Prempeh - Professional Portrait with Awards"
+                className="w-full h-full object-cover rounded-lg"
               />
             </div>
           </div>
