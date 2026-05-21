@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Soybean Price Tracker & Predictor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0d1117;
+      --bg2:        #161b24;
+      --bg3:        #1e2532;
+      --border:     rgba(255,255,255,0.07);
+      --accent:     #c8f04a;
+      --accent2:    #4ab8f0;
+      --cost:       #4ab8f0;
+      --sell:       #c8f04a;
+      --buy-dot:    #f05a4a;
+      --sell-dot:   #f0a84a;
+      --text:       #e8edf5;
+      --text2:      #8b95a8;
+      --text3:      #4a5568;
+      --profit-pos: #c8f04a;
+      --profit-neg: #f05a4a;
+      --radius:     12px;
+      --radius-lg:  18px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── HEADER ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 28px 0 24px;
+      margin-bottom: 40px;
+      background: linear-gradient(180deg, rgba(200,240,74,0.04) 0%, transparent 100%);
+    }
+
+    .header-inner { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+
+    .brand { display: flex; flex-direction: column; gap: 4px; }
+    .brand-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--accent);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .brand-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+      letter-spacing: -.02em;
+    }
+    .brand-title span { color: var(--accent); }
+
+    .header-meta {
+      text-align: right;
+      font-size: 11px;
+      color: var(--text3);
+      line-height: 1.8;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(200,240,74,0.1);
+      border: 1px solid rgba(200,240,74,0.2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 11px;
+      color: var(--accent);
+      font-family: 'DM Mono', monospace;
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+    /* ── STAT CARDS ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px;
+      transition: border-color .2s;
+    }
+    .stat-card:hover { border-color: rgba(255,255,255,0.15); }
+    .stat-card .label {
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 8px;
+    }
+    .stat-card .value {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    .stat-card .sub {
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 5px;
+    }
+    .stat-card.accent-cost .value { color: var(--cost); }
+    .stat-card.accent-sell .value { color: var(--sell); }
+
+    /* ── CHART PANEL ── */
+    .panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    .panel-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .panel-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      color: var(--text2);
+    }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+    .legend-line {
+      width: 18px; height: 2px;
+      display: inline-block;
+    }
+    .legend-dash {
+      width: 18px; height: 0;
+      border-top: 2px dashed;
+      display: inline-block;
+    }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 360px;
+    }
+
+    /* ── SLIDERS ── */
+    .calculator-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .slider-block {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .slider-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .slider-badge {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: .06em;
+    }
+    .badge-buy { background: rgba(240,90,74,0.15); color: var(--buy-dot); border: 1px solid rgba(240,90,74,0.3); }
+    .badge-sell { background: rgba(240,168,74,0.15); color: var(--sell-dot); border: 1px solid rgba(240,168,74,0.3); }
+
+    .slider-label { font-size: 11px; color: var(--text2); }
+
+    input[type=range] {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--bg);
+      outline: none;
+      margin: 12px 0 8px;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(200,240,74,0.2);
+      transition: box-shadow .2s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 0 6px rgba(200,240,74,0.15);
+    }
+    #sellSlider::-webkit-slider-thumb { background: var(--sell-dot); box-shadow: 0 0 0 3px rgba(240,168,74,0.2); }
+    #sellSlider::-webkit-slider-thumb:hover { box-shadow: 0 0 0 6px rgba(240,168,74,0.15); }
+
+    .slider-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .slider-date {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .slider-price {
+      font-size: 12px;
+      color: var(--text2);
+    }
+
+    .quick-btns {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .quick-btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      padding: 4px 9px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text2);
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+      letter-spacing: .04em;
+    }
+    .quick-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(200,240,74,0.05); }
+
+    /* ── RESULT BOX ── */
+    .result-box {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-top: 20px;
+    }
+    .result-cell {
+      background: var(--bg2);
+      padding: 20px 16px;
+      text-align: center;
+    }
+    .result-cell .label {
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 8px;
+    }
+    .result-cell .value {
+      font-family: 'Syne', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+    .result-cell .value.pos { color: var(--profit-pos); }
+    .result-cell .value.neg { color: var(--profit-neg); }
+    .result-cell .value.warn { color: var(--sell-dot); }
+
+    .signal-bar {
+      margin-top: 16px;
+      padding: 14px 20px;
+      border-radius: var(--radius);
+      font-family: 'Syne', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: .04em;
+      transition: background .3s, border-color .3s, color .3s;
+    }
+    .signal-bar.good { background: rgba(200,240,74,0.1); border: 1px solid rgba(200,240,74,0.3); color: var(--accent); }
+    .signal-bar.thin { background: rgba(240,168,74,0.1); border: 1px solid rgba(240,168,74,0.3); color: var(--sell-dot); }
+    .signal-bar.loss { background: rgba(240,90,74,0.1);  border: 1px solid rgba(240,90,74,0.3);  color: var(--buy-dot); }
+    .signal-bar.warn { background: rgba(240,168,74,0.08);border: 1px solid rgba(240,168,74,0.2); color: var(--sell-dot); }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 0;
+      margin-top: 48px;
+      font-size: 11px;
+      color: var(--text3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .footer-note { line-height: 1.7; max-width: 600px; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 700px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .calculator-grid { grid-template-columns: 1fr; }
+      .result-grid { grid-template-columns: repeat(2, 1fr); }
+      .header-meta { display: none; }
+    }
+    @media (max-width: 420px) {
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .result-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wrap header-inner">
+    <div class="brand">
+      <span class="brand-tag">GH · Commodity Intelligence</span>
+      <h1 class="brand-title">Soybean <span>Price</span> Predictor</h1>
+    </div>
+    <div class="header-meta">
+      <div class="status-badge"><span class="status-dot"></span> Live Forecast Active</div><br/>
+      29 verified data points · Jan – May 2026<br/>
+      OLS Linear Regression
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- Stat Cards -->
+  <div class="stats-grid">
+    <div class="stat-card accent-cost">
+      <div class="label">Cost trend / month</div>
+      <div class="value" id="s-ctrend">—</div>
+      <div class="sub">avg monthly change</div>
+    </div>
+    <div class="stat-card accent-sell">
+      <div class="label">Sell trend / month</div>
+      <div class="value" id="s-strend">—</div>
+      <div class="sub">avg monthly change</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Current avg margin</div>
+      <div class="value" id="s-margin">—</div>
+      <div class="sub">sell − cost at latest</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Margin %</div>
+      <div class="value" id="s-marginpct">—</div>
+      <div class="sub">at latest data point</div>
+    </div>
+  </div>
+
+  <!-- Chart Panel -->
+  <div class="panel">
+    <div class="panel-title">Price History &amp; Forecast</div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:var(--cost);"></span> Cost / kg</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--sell);"></span> Sell / kg</div>
+      <div class="legend-item"><span class="legend-line" style="background:var(--cost);"></span> Cost trend</div>
+      <div class="legend-item"><span class="legend-line" style="background:var(--sell);"></span> Sell trend</div>
+      <div class="legend-item"><span class="legend-dash" style="border-color:var(--cost);"></span> Cost forecast</div>
+      <div class="legend-item"><span class="legend-dash" style="border-color:var(--sell);"></span> Sell forecast</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--buy-dot);border-radius:50%;"></span> Buy point</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--sell-dot);border-radius:50%;"></span> Sell point</div>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="mainChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Profit Calculator -->
+  <div class="panel">
+    <div class="panel-title">Profit Margin Calculator</div>
+
+    <div class="calculator-grid">
+      <div class="slider-block">
+        <div class="slider-header">
+          <span class="slider-badge badge-buy">BUY</span>
+          <span class="slider-label">Select purchase date</span>
+        </div>
+        <input type="range" id="buySlider" min="0" max="545" value="13" step="1" />
+        <div class="slider-info">
+          <span class="slider-date" id="buyLabel">—</span>
+          <span class="slider-price" id="buyCostLabel">—</span>
+        </div>
+        <div class="quick-btns">
+          <button class="quick-btn" onclick="setSlider('buy',0)">Today</button>
+          <button class="quick-btn" onclick="setSlider('buy',30)">+1 mo</button>
+          <button class="quick-btn" onclick="setSlider('buy',90)">+3 mo</button>
+          <button class="quick-btn" onclick="setSlider('buy',180)">+6 mo</button>
+          <button class="quick-btn" onclick="setSlider('buy',365)">+1 yr</button>
+        </div>
+      </div>
+
+      <div class="slider-block">
+        <div class="slider-header">
+          <span class="slider-badge badge-sell">SELL</span>
+          <span class="slider-label">Select sale date</span>
+        </div>
+        <input type="range" id="sellSlider" min="0" max="545" value="43" step="1" />
+        <div class="slider-info">
+          <span class="slider-date" id="sellLabel">—</span>
+          <span class="slider-price" id="sellPriceLabel">—</span>
+        </div>
+        <div class="quick-btns">
+          <button class="quick-btn" onclick="setSlider('sell',0)">Today</button>
+          <button class="quick-btn" onclick="setSlider('sell',30)">+1 mo</button>
+          <button class="quick-btn" onclick="setSlider('sell',90)">+3 mo</button>
+          <button class="quick-btn" onclick="setSlider('sell',180)">+6 mo</button>
+          <button class="quick-btn" onclick="setSlider('sell',365)">+1 yr</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-box" style="padding:0;background:transparent;border:none;">
+      <div class="result-grid">
+        <div class="result-cell">
+          <div class="label">Buy price / kg</div>
+          <div class="value" id="r-buyprice">—</div>
+        </div>
+        <div class="result-cell">
+          <div class="label">Sell price / kg</div>
+          <div class="value" id="r-sellprice">—</div>
+        </div>
+        <div class="result-cell">
+          <div class="label">Profit / kg</div>
+          <div class="value" id="r-profit">—</div>
+        </div>
+        <div class="result-cell">
+          <div class="label">Holding period</div>
+          <div class="value" id="r-days">—</div>
+        </div>
+        <div class="result-cell">
+          <div class="label">Margin %</div>
+          <div class="value" id="r-pct">—</div>
+        </div>
+        <div class="result-cell">
+          <div class="label">Monthly ROI</div>
+          <div class="value" id="r-roi">—</div>
+        </div>
+      </div>
+      <div class="signal-bar good" id="r-signal">—</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;width:100%;">
+    <div class="footer-note">
+      Forecast uses OLS linear regression on 29 verified cost &amp; sell data points (Jan–May 2026, Ghana soybeans).
+      Predictions beyond the last observation carry growing uncertainty — use as directional guidance only.
+      Multiply per-kg profit by your purchase volume to estimate total returns.
+    </div>
+    <div style="font-size:11px;color:var(--text3);text-align:right;">
+      GHS · Ghana Cedi<br/>
+      Last data: 17 May 2026
+    </div>
+  </div>
+</footer>
+
+<script>
+const costRaw = [
+  {d:'2026-01-15',p:4.59},{d:'2026-01-16',p:4.65},{d:'2026-01-23',p:4.44},
+  {d:'2026-01-23',p:4.49},{d:'2026-01-23',p:4.65},{d:'2026-01-23',p:4.67},
+  {d:'2026-01-27',p:4.44},{d:'2026-01-27',p:4.52},{d:'2026-02-04',p:4.59},
+  {d:'2026-02-05',p:4.59},{d:'2026-02-12',p:4.97},{d:'2026-02-12',p:4.74},
+  {d:'2026-02-20',p:4.92},{d:'2026-02-26',p:4.89},{d:'2026-02-28',p:5.17},
+  {d:'2026-02-28',p:5.17},{d:'2026-03-02',p:4.97},{d:'2026-03-03',p:4.68},
+  {d:'2026-03-07',p:4.84},{d:'2026-03-10',p:4.97},{d:'2026-03-10',p:5.02},
+  {d:'2026-03-14',p:5.44},{d:'2026-03-18',p:4.94},{d:'2026-03-31',p:5.30},
+  {d:'2026-03-31',p:5.22},{d:'2026-04-07',p:5.40},{d:'2026-04-14',p:5.48},
+  {d:'2026-05-07',p:5.94},{d:'2026-05-17',p:5.24}
+];
+
+const sellRaw = [
+  {d:'2026-01-15',p:4.85},{d:'2026-01-16',p:5.00},{d:'2026-01-23',p:4.60},
+  {d:'2026-01-23',p:4.58},{d:'2026-01-23',p:4.68},{d:'2026-01-23',p:4.78},
+  {d:'2026-01-27',p:4.64},{d:'2026-01-27',p:4.64},{d:'2026-02-04',p:4.90},
+  {d:'2026-02-05',p:4.80},{d:'2026-02-12',p:5.25},{d:'2026-02-12',p:4.98},
+  {d:'2026-02-20',p:4.99},{d:'2026-02-26',p:5.12},{d:'2026-02-28',p:5.44},
+  {d:'2026-02-28',p:5.63},{d:'2026-03-02',p:5.53},{d:'2026-03-03',p:5.33},
+  {d:'2026-03-07',p:5.62},{d:'2026-03-10',p:5.20},{d:'2026-03-10',p:5.22},
+  {d:'2026-03-14',p:5.74},{d:'2026-03-18',p:5.34},{d:'2026-03-31',p:4.54},
+  {d:'2026-03-31',p:5.54},{d:'2026-04-07',p:5.90},{d:'2026-04-14',p:5.69},
+  {d:'2026-05-07',p:6.23},{d:'2026-05-17',p:5.90}
+];
+
+const origin  = new Date('2026-01-01').getTime();
+const msDay   = 86400000;
+const toDay   = d => (new Date(d).getTime() - origin) / msDay;
+const toDate  = x => new Date(origin + x * msDay).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+const fmt     = n => 'GHS ' + n.toFixed(2);
+
+const cPts = costRaw.map(r=>({x:toDay(r.d),y:r.p})).sort((a,b)=>a.x-b.x);
+const sPts = sellRaw.map(r=>({x:toDay(r.d),y:r.p})).sort((a,b)=>a.x-b.x);
+
+function linReg(pts) {
+  const n=pts.length; let sx=0,sy=0,sxy=0,sxx=0;
+  pts.forEach(p=>{sx+=p.x;sy+=p.y;sxy+=p.x*p.y;sxx+=p.x*p.x;});
+  const slope=(n*sxy-sx*sy)/(n*sxx-sx*sx);
+  const intercept=(sy-slope*sx)/n;
+  return {slope, intercept, pred: x => intercept + slope*x};
+}
+
+const cReg = linReg(cPts);
+const sReg = linReg(sPts);
+
+const lastDay = Math.max(cPts[cPts.length-1].x, sPts[sPts.length-1].x);
+
+// Stats
+const cMonthly = cReg.slope * 30;
+const sMonthly = sReg.slope * 30;
+const latestC  = cReg.pred(lastDay);
+const latestS  = sReg.pred(lastDay);
+const margin   = latestS - latestC;
+const marginPct= (margin / latestC) * 100;
+
+function colorSign(el, val, pos='#c8f04a', neg='#f05a4a') {
+  el.style.color = val >= 0 ? pos : neg;
+}
+
+const cTrendEl = document.getElementById('s-ctrend');
+cTrendEl.textContent = (cMonthly>=0?'+':'') + fmt(cMonthly);
+colorSign(cTrendEl, cMonthly);
+
+const sTrendEl = document.getElementById('s-strend');
+sTrendEl.textContent = (sMonthly>=0?'+':'') + fmt(sMonthly);
+colorSign(sTrendEl, sMonthly);
+
+const marginEl = document.getElementById('s-margin');
+marginEl.textContent = fmt(margin);
+colorSign(marginEl, margin);
+
+const marginPctEl = document.getElementById('s-marginpct');
+marginPctEl.textContent = marginPct.toFixed(1) + '%';
+colorSign(marginPctEl, marginPct);
+
+// Build lines
+function buildLine(reg, from, to, step=2) {
+  const pts=[]; for(let x=from;x<=to;x+=step) pts.push({x,y:Math.max(0,reg.pred(x))}); return pts;
+}
+
+const cTrend    = buildLine(cReg, cPts[0].x, cPts[cPts.length-1].x);
+const sTrend    = buildLine(sReg, sPts[0].x, sPts[sPts.length-1].x);
+const cForecast = buildLine(cReg, cPts[cPts.length-1].x, lastDay+545, 5);
+const sForecast = buildLine(sReg, sPts[sPts.length-1].x, lastDay+545, 5);
+
+// Chart
+const ctx = document.getElementById('mainChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'scatter',
+  data: { datasets: [
+    { label:'Cost data',     data:cPts, backgroundColor:'#4ab8f0', pointRadius:4.5, pointHoverRadius:7, showLine:false, order:5 },
+    { label:'Sell data',     data:sPts, backgroundColor:'#c8f04a', pointRadius:4.5, pointHoverRadius:7, showLine:false, order:5 },
+    { label:'Cost trend',    data:cTrend,    borderColor:'#4ab8f0', borderWidth:2, pointRadius:0, showLine:true, fill:false, tension:0, order:4 },
+    { label:'Sell trend',    data:sTrend,    borderColor:'#c8f04a', borderWidth:2, pointRadius:0, showLine:true, fill:false, tension:0, order:4 },
+    { label:'Cost forecast', data:cForecast, borderColor:'#4ab8f0', borderDash:[6,4], borderWidth:1.5, pointRadius:0, showLine:true, fill:false, tension:0, order:4 },
+    { label:'Sell forecast', data:sForecast, borderColor:'#c8f04a', borderDash:[6,4], borderWidth:1.5, pointRadius:0, showLine:true, fill:false, tension:0, order:4 },
+    { label:'Buy point',     data:[], backgroundColor:'#f05a4a', pointRadius:10, pointHoverRadius:12, showLine:false, order:1 },
+    { label:'Sell point',    data:[], backgroundColor:'#f0a84a', pointRadius:10, pointHoverRadius:12, showLine:false, order:1 },
+    { label:'Connector',     data:[], borderColor:'rgba(255,255,255,0.2)', borderWidth:1.5, borderDash:[3,3], pointRadius:0, showLine:true, fill:false, tension:0, order:2 }
+  ]},
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(22,27,36,0.95)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        titleColor: '#8b95a8',
+        bodyColor: '#e8edf5',
+        titleFont: { family: 'DM Mono', size: 11 },
+        bodyFont: { family: 'DM Mono', size: 13 },
+        callbacks: {
+          label: c => fmt(c.parsed.y),
+          title: c => toDate(c[0].parsed.x)
+        }
+      }
+    },
+    scales: {
+      x: {
+        type: 'linear',
+        ticks: {
+          callback: v => new Date(origin+v*msDay).toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),
+          maxTicksLimit: 9,
+          color: '#4a5568',
+          font: { family: 'DM Mono', size: 11 }
+        },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        border: { color: 'rgba(255,255,255,0.07)' },
+        min: cPts[0].x - 5,
+        max: lastDay + 35
+      },
+      y: {
+        title: { display: true, text: 'GHS / kg', color: '#4a5568', font: { family: 'DM Mono', size: 11 } },
+        ticks: { callback: v => 'GHS '+v.toFixed(2), color: '#4a5568', font: { family: 'DM Mono', size: 11 } },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        border: { color: 'rgba(255,255,255,0.07)' },
+        min: 4.0,
+        max: 7.5
+      }
+    }
+  }
+});
+
+function setSlider(which, val) {
+  document.getElementById(which+'Slider').value = val;
+  update();
+}
+
+function update() {
+  const buyDays  = parseInt(document.getElementById('buySlider').value);
+  const sellDays = parseInt(document.getElementById('sellSlider').value);
+  const buyDay   = lastDay + buyDays;
+  const sellDay  = lastDay + sellDays;
+
+  const buyPrice  = Math.max(0, cReg.pred(buyDay));
+  const sellPrice = Math.max(0, sReg.pred(sellDay));
+  const profit    = sellPrice - buyPrice;
+  const pct       = (profit / buyPrice) * 100;
+  const holding   = sellDay - buyDay;
+  const roiPerMonth = holding > 0 ? (pct / holding) * 30 : 0;
+
+  document.getElementById('buyLabel').textContent    = toDate(buyDay);
+  document.getElementById('sellLabel').textContent   = toDate(sellDay);
+  document.getElementById('buyCostLabel').textContent  = 'Cost: ' + fmt(buyPrice);
+  document.getElementById('sellPriceLabel').textContent = 'Sell: ' + fmt(sellPrice);
+
+  document.getElementById('r-buyprice').textContent  = fmt(buyPrice);
+  document.getElementById('r-sellprice').textContent = fmt(sellPrice);
+
+  const profitEl = document.getElementById('r-profit');
+  profitEl.textContent = (profit>=0?'+':'') + fmt(profit);
+  profitEl.className = 'value ' + (profit>=0?'pos':'neg');
+
+  document.getElementById('r-days').textContent = Math.abs(holding) + ' days';
+  document.getElementById('r-days').className = 'value ' + (holding < 0 ? 'warn' : '');
+
+  const pctEl = document.getElementById('r-pct');
+  pctEl.textContent = (pct>=0?'+':'') + pct.toFixed(1) + '%';
+  pctEl.className = 'value ' + (pct>=0?'pos':'neg');
+
+  const roiEl = document.getElementById('r-roi');
+  roiEl.textContent = holding > 0 ? (roiPerMonth>=0?'+':'') + roiPerMonth.toFixed(2) + '% /mo' : '—';
+  roiEl.className = 'value ' + (roiPerMonth>=0?'pos':'neg');
+
+  const sig = document.getElementById('r-signal');
+  if (holding < 0) {
+    sig.textContent = '⚠  Sell date is before buy date — please adjust'; sig.className = 'signal-bar warn';
+  } else if (profit > 0.5) {
+    sig.textContent = '✓  Strong margin — favourable trade window'; sig.className = 'signal-bar good';
+  } else if (profit > 0) {
+    sig.textContent = '~  Thin margin — weigh storage & transport costs'; sig.className = 'signal-bar thin';
+  } else {
+    sig.textContent = '✗  Projected loss — consider a different window'; sig.className = 'signal-bar loss';
+  }
+
+  chart.data.datasets[6].data = [{x:buyDay,  y:buyPrice}];
+  chart.data.datasets[7].data = [{x:sellDay, y:sellPrice}];
+  chart.data.datasets[8].data = [{x:buyDay,  y:buyPrice}, {x:sellDay, y:sellPrice}];
+
+  const newMax = Math.max(sellDay, buyDay) + 20;
+  chart.options.scales.x.max = Math.max(newMax, lastDay+35);
+
+  // Extend forecast arrays if needed
+  const extendTo = Math.max(buyDay, sellDay) + 15;
+  [[cForecast, cReg, 4], [sForecast, sReg, 5]].forEach(([arr, reg, di]) => {
+    const last = arr[arr.length-1];
+    if (extendTo > last.x) {
+      for (let x = last.x+5; x <= extendTo+5; x+=5)
+        arr.push({x, y: Math.max(0, reg.pred(x))});
+      chart.data.datasets[di].data = arr;
+    }
+  });
+
+  chart.update('none');
+}
+
+document.getElementById('buySlider').addEventListener('input', update);
+document.getElementById('sellSlider').addEventListener('input', update);
+update();
+</script>
+</body>
+</html>
